@@ -36,6 +36,10 @@ const getAudio = (src: string, loop = false): HTMLAudioElement => {
 const handlePlayPromise = (promise: Promise<void> | undefined, soundName: string, soundPath: string) => {
     if (promise !== undefined) {
         promise.catch((e: DOMException) => {
+            // FIX: The AbortError is not critical and can be safely ignored. It often occurs during fast navigation or when another sound/music command interrupts the current one.
+            if (e.name === 'AbortError') {
+                return;
+            }
             // Check for common error names and provide helpful, non-alarming logs.
             if (e.name === 'NotAllowedError') {
                 // This is the autoplay error. It's a warning because we have logic to handle it.

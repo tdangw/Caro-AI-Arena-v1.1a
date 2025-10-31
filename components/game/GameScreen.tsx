@@ -121,11 +121,11 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameMode, bot, onlineGameId, on
     }
 
     const moveCount = useMemo(() => {
-        const totalMoves = Object.values(board).flat().filter(cell => cell !== null).length;
-        return {
-            X: Math.ceil(totalMoves / 2),
-            O: Math.floor(totalMoves / 2),
-        };
+        return board.flat().reduce((acc, cell) => {
+            if (cell === 'X') acc.X++;
+            else if (cell === 'O') acc.O++;
+            return acc;
+        }, { X: 0, O: 0 });
     }, [board]);
 
     // --- Effects ---

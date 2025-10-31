@@ -324,44 +324,45 @@ const MainMenu: React.FC<MainMenuProps> = ({ onStartGame, onGoToShop, onGoToInve
   }
 
   return (
-    <div className="min-h-screen bg-slate-900 text-white p-4 sm:p-6 flex flex-col items-center justify-start overflow-y-auto relative pt-8">
+    <div className="min-h-screen bg-slate-900 text-white p-4 sm:p-6 flex flex-col items-center justify-start overflow-y-auto relative pt-4 sm:pt-6 md:pt-8">
        <div className="absolute inset-0 bg-[url('data:image/svg+xml,%3Csvg%20width%3D%2240%22%20height%3D%2240%22%20viewBox%3D%220%200%2040%2040%22%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%3E%3Cg%20fill%3D%22%231e293b%22%20fill-opacity%3D%220.4%22%20fill-rule%3D%22evenodd%22%3E%3Cpath%20d%3D%22M0%2040L40%200H20L0%2020M40%2040V20L20%2040%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E')] opacity-50"></div>
        
        <div className="w-full max-w-5xl text-center z-10 flex flex-col items-center">
             <h1 className="text-5xl md:text-6xl font-black text-white mb-1">
                 Caro <span className="text-cyan-400">AI Arena</span>
             </h1>
-            <p className="text-slate-400 text-md mb-8">Five in a row. Infinite possibilities.</p>
+            <p className="text-slate-400 text-md mb-6 md:mb-8">Five in a row. Infinite possibilities.</p>
             
-            <div className="w-full max-w-4xl grid grid-cols-1 lg:grid-cols-3 gap-4 mb-8">
-                <div className="lg:col-span-1"><PlayerProfile /></div>
-                <div className="lg:col-span-1"><FeaturedItem onGoToShop={onGoToShop} itemOffset={0} /></div>
-                <div className="lg:col-span-1 grid grid-cols-2 gap-4 h-full">
-                    <button
-                        onClick={onGoToShop}
-                        className="w-full h-full bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold p-3 rounded-lg text-base transition-all duration-300 transform hover:scale-105 shadow-lg flex items-center justify-center"
-                    >
-                        Shop 🛒
-                    </button>
-                    <button
-                        onClick={onGoToInventory}
-                        className="w-full h-full bg-gradient-to-r from-teal-500 to-blue-500 hover:from-teal-400 hover:to-blue-400 text-white font-bold p-3 rounded-lg text-base transition-all duration-300 transform hover:scale-105 shadow-lg flex items-center justify-center"
-                    >
-                        Inventory 🎒
-                    </button>
-                    <button
-                        onClick={handleSettingsClick}
-                        className="w-full h-full bg-slate-700 hover:bg-slate-600 text-white font-bold p-3 rounded-lg text-base transition-all duration-300 transform hover:scale-105 shadow-lg flex items-center justify-center"
-                    >
-                        Settings ⚙️
-                    </button>
-                    <button
-                        onClick={onGoToOnline}
-                        className="w-full h-full bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-400 hover:to-red-400 text-white font-bold p-3 rounded-lg text-base transition-all duration-300 shadow-lg flex items-center justify-center transform hover:scale-105"
-                    >
-                        Play Online 🌎
-                    </button>
-                </div>
+            <div className="w-full max-w-4xl grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <PlayerProfile />
+                <FeaturedItem onGoToShop={onGoToShop} itemOffset={0} />
+            </div>
+
+            <div className="w-full max-w-4xl grid grid-cols-2 md:grid-cols-4 gap-4 mb-6 md:mb-8">
+                <button
+                    onClick={onGoToShop}
+                    className="w-full h-full bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white font-bold p-3 rounded-lg text-base transition-all duration-300 transform hover:scale-105 shadow-lg flex items-center justify-center min-h-[60px] md:min-h-[70px]"
+                >
+                    Shop 🛒
+                </button>
+                <button
+                    onClick={onGoToInventory}
+                    className="w-full h-full bg-gradient-to-r from-teal-500 to-blue-500 hover:from-teal-400 hover:to-blue-400 text-white font-bold p-3 rounded-lg text-base transition-all duration-300 transform hover:scale-105 shadow-lg flex items-center justify-center min-h-[60px] md:min-h-[70px]"
+                >
+                    Inventory 🎒
+                </button>
+                <button
+                    onClick={handleSettingsClick}
+                    className="w-full h-full bg-slate-700 hover:bg-slate-600 text-white font-bold p-3 rounded-lg text-base transition-all duration-300 transform hover:scale-105 shadow-lg flex items-center justify-center min-h-[60px] md:min-h-[70px]"
+                >
+                    Settings ⚙️
+                </button>
+                <button
+                    onClick={onGoToOnline}
+                    className="w-full h-full bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-400 hover:to-red-400 text-white font-bold p-3 rounded-lg text-base transition-all duration-300 shadow-lg flex items-center justify-center transform hover:scale-105 min-h-[60px] md:min-h-[70px]"
+                >
+                    Play Online 🌎
+                </button>
             </div>
 
             <div className="w-full max-w-4xl">
