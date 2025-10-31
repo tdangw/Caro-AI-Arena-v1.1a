@@ -5,7 +5,6 @@ import react from '@vitejs/plugin-react';
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, '.', '');
 
-  // Biến đã định nghĩa
   const REPO_NAME = 'Caro-AI-Arena-v1.1a';
 
   return {
@@ -14,7 +13,6 @@ export default defineConfig(({ mode }) => {
       host: '0.0.0.0',
     },
 
-    // 🌟 ĐÃ SỬA: Thay đổi repoName thành REPO_NAME
     base: `/${REPO_NAME}/`,
 
     plugins: [react()],
