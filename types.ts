@@ -126,6 +126,7 @@ export interface UserProfile {
     pendingGiftIds?: string[];
     botStats: Record<string, { wins: number; losses: number; draws: number; }>;
     processedGameIds?: string[];
+    showThreats?: boolean;
 }
 
 export interface OnlinePlayer {

@@ -1,7 +1,9 @@
+
 import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react';
 import { useGameLogic } from '../../hooks/useGameLogic';
 import { useOnlineGame } from '../../hooks/useOnlineGame';
-import { getAIMove } from '../../services/aiService';
+// FIX: Import the new findThreatLines function for threat analysis.
+import { getAIMove, findThreatLines } from '../../services/aiService';
 import { updateOpeningBook } from '../../services/openingBook';
 import * as onlineService from '../../services/onlineService';
 import type { Player, GameTheme, PieceStyle, BotProfile, Avatar, Emoji, PieceEffect, VictoryEffect, BoomEffect, GameMode, BoardStyle, AnimatedEmoji, BoardState } from '../../types';
@@ -82,6 +84,8 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameMode, bot, onlineGameId, on
     const [leaveCountdown, setLeaveCountdown] = useState(15);
     const [cpChange, setCpChange] = useState(0);
     const [pveDuration, setPveDuration] = useState<number | null>(null);
+    // FIX: State for the glowing pieces that form a threat line.
+    const [glowingPieces, setGlowingPieces] = useState<{ row: number; col: number }[]>([]);
 
     // Game Over Flow State
     const [gameOverStage, setGameOverStage] = useState<GameOverStage>('none');
@@ -109,6 +113,8 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameMode, bot, onlineGameId, on
     const hasLoadedOnlineGame = useRef(false);
     const countdownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
     const isExitingRef = useRef(false);
+    // FIX: Ref to prevent the 'check' sound from playing twice in React Strict Mode.
+    const soundPlayedForMoveRef = useRef<{row: number, col: number} | null>(null);
 
 
     // --- Destructure from active logic hook ---
@@ -121,11 +127,16 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameMode, bot, onlineGameId, on
     }
 
     const moveCount = useMemo(() => {
-        return board.flat().reduce((acc, cell) => {
-            if (cell === 'X') acc.X++;
-            else if (cell === 'O') acc.O++;
-            return acc;
-        }, { X: 0, O: 0 });
+        // FIX: Correctly count moves for each player by iterating through the board. This fixes a bug where the move count was incorrect if player O started.
+        let xMoves = 0;
+        let oMoves = 0;
+        for (let r = 0; r < board.length; r++) {
+            for (let c = 0; c < board[r].length; c++) {
+                if (board[r][c] === 'X') xMoves++;
+                else if (board[r][c] === 'O') oMoves++;
+            }
+        }
+        return { X: xMoves, O: oMoves };
     }, [board]);
 
     // --- Effects ---
@@ -175,9 +186,34 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameMode, bot, onlineGameId, on
         return clearCountdown;
     }, [gameOverStage, handleExit]);
     
+    // FIX: Overhauled threat detection to find all threat lines and prevent duplicate sounds.
     useEffect(() => {
         if (lastMove) playSound('move');
-    }, [lastMove, playSound]);
+
+        if (!lastMove || !gameState.showThreats || isGameOver) {
+            setGlowingPieces([]);
+            return;
+        }
+
+        const threatLines = findThreatLines(board, lastMove);
+        if (threatLines.length > 0) {
+            const allPiecesInThreats = threatLines.flat();
+            
+            // Remove duplicates for pieces that are part of multiple threat lines (e.g., an intersection)
+            const uniquePieces = Array.from(new Map(allPiecesInThreats.map(p => [`${p.row},${p.col}`, p])).values());
+
+            setGlowingPieces(uniquePieces);
+
+            // Prevent double sound play in strict mode
+            if (soundPlayedForMoveRef.current?.row !== lastMove.row || soundPlayedForMoveRef.current?.col !== lastMove.col) {
+                playSound('check');
+                soundPlayedForMoveRef.current = lastMove;
+            }
+        } else {
+            setGlowingPieces([]);
+        }
+
+    }, [lastMove, board, gameState.showThreats, isGameOver, playSound]);
 
     useEffect(() => {
         if (gameMode === 'online' && onlineOpponentEmote) {
@@ -517,7 +553,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameMode, bot, onlineGameId, on
                         className="mt-px relative backdrop-blur-lg rounded-xl p-2 border shadow-lg"
                         style={activeBoard.style}
                     >
-                        <GameBoard board={board} onCellClick={handleCellClick} winningLine={winningLine} pieces={allPieces} aiThinkingCell={aiThinkingCell} theme={theme} lastMove={lastMove} effect={activeEffect} />
+                        <GameBoard board={board} onCellClick={handleCellClick} winningLine={winningLine} pieces={allPieces} aiThinkingCell={aiThinkingCell} theme={theme} lastMove={lastMove} effect={activeEffect} glowingPieces={glowingPieces} />
                         {shouldShowFirstMoveAnimation && (
                             <FirstMoveAnimation 
                                 pieces={allPieces} 
@@ -580,7 +616,7 @@ const GameScreen: React.FC<GameScreenProps> = ({ gameMode, bot, onlineGameId, on
                 onMessageSent={handlePlayerMessageSent}
             />
         )}
-        <style>{`.animate-confirm-glow { animation: confirm-glow 1.5s ease-in-out infinite; } @keyframes confirm-glow { 50% { box-shadow: 0 0 15px rgba(74, 222, 128, 0.7); } } .last-move-highlight { animation: last-move-glow 2s ease-in-out infinite; } @keyframes last-move-glow { 0% { filter: drop-shadow(0 0 12px rgba(255, 255, 100, 1)) drop-shadow(0 0 6px rgba(255, 255, 100, 1)) brightness(1.5); } 10% { filter: drop-shadow(0 0 10px rgba(255, 255, 100, 0.9)); } 55% { filter: drop-shadow(0 0 4px rgba(255, 255, 100, 0.6)); } 100% { filter: drop-shadow(0 0 10px rgba(255, 255, 100, 0.9)); } } .animate-fade-in-down-then-out { animation: fade-in-down-then-out 2s cubic-bezier(0.25, 1, 0.5, 1) forwards; } @keyframes fade-in-down-then-out { 0% { transform: translateY(-50px) translateX(-50%) scale(0.8); opacity: 0; } 20% { transform: translateY(0) translateX(-50%) scale(1); opacity: 1; } 80% { transform: translateY(0) translateX(-50%) scale(1); opacity: 1; } 100% { transform: translateY(20px) translateX(-50%) scale(0.9); opacity: 0; } }`}</style>
+        <style>{`.animate-confirm-glow { animation: confirm-glow 1.5s ease-in-out infinite; } @keyframes confirm-glow { 50% { box-shadow: 0 0 15px rgba(74, 222, 128, 0.7); } } .last-move-highlight { animation: last-move-glow 2s ease-in-out infinite; } @keyframes last-move-glow { 0% { filter: drop-shadow(0 0 12px rgba(255, 255, 100, 1)) drop-shadow(0 0 6px rgba(255, 255, 100, 1)) brightness(1.5); } 10% { filter: drop-shadow(0 0 10px rgba(255, 255, 100, 0.9)); } 55% { filter: drop-shadow(0 0 4px rgba(255, 255, 100, 0.6)); } 100% { filter: drop-shadow(0 0 10px rgba(255, 255, 100, 0.9)); } } .animate-fade-in-down-then-out { animation: fade-in-down-then-out 2s cubic-bezier(0.25, 1, 0.5, 1) forwards; } @keyframes fade-in-down-then-out { 0% { transform: translateY(-50px) translateX(-50%) scale(0.8); opacity: 0; } 20% { transform: translateY(0) translateX(-50%) scale(1); opacity: 1; } 80% { transform: translateY(0) translateX(-50%) scale(1); opacity: 1; } 100% { transform: translateY(20px) translateX(-50%) scale(0.9); opacity: 0; } } .threat-piece-glow { animation: threat-glow-anim 1.5s ease-in-out infinite; } @keyframes threat-glow-anim { 50% { filter: drop-shadow(0 0 12px currentColor) brightness(1.7); } }`}</style>
     </div>
   );
 };

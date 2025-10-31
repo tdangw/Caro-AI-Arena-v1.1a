@@ -1,3 +1,4 @@
+
 import React from 'react';
 import type { Player, BoardState, GameTheme, PieceStyle, PieceEffect } from '../../types';
 
@@ -11,9 +12,10 @@ interface GameCellProps {
   playPlacementEffect: boolean;
   isLastMove: boolean;
   effect: PieceEffect;
+  isGlowingPiece: boolean;
 }
 
-const GameCell: React.FC<GameCellProps> = React.memo(({ state, onClick, isWinningCell, pieces, showThinkingIndicator, theme, playPlacementEffect, isLastMove, effect }) => {
+const GameCell: React.FC<GameCellProps> = React.memo(({ state, onClick, isWinningCell, pieces, showThinkingIndicator, theme, playPlacementEffect, isLastMove, effect, isGlowingPiece }) => {
   const PieceX = pieces.X.component;
   const PieceO = pieces.O.component;
   const effectIdClass = `animate-effect_${effect.id.split('_')[1]}`;
@@ -22,18 +24,17 @@ const GameCell: React.FC<GameCellProps> = React.memo(({ state, onClick, isWinnin
     <div
       className={`w-full h-full flex items-center justify-center cursor-pointer group relative`}
       onClick={onClick}
-      style={{ '--tw-bg-opacity': 0.1 } as React.CSSProperties}
     >
       <div className={`absolute inset-0 border-r border-b ${theme.gridColor}`}></div>
-      {state === null && <div className={`absolute inset-0 opacity-0 group-hover:bg-white/10 transition-colors duration-200 rounded-sm`}></div>}
-
+      {state === null && !showThinkingIndicator && <div className={`absolute inset-0 opacity-0 group-hover:bg-white/10 transition-colors duration-200 rounded-sm`}></div>}
+      
       <div className={`w-full h-full relative transition-all duration-200 ${isWinningCell ? 'bg-yellow-500/30 rounded-md scale-110' : ''}`}>
         {state && (
           <div className={`w-full h-full p-1.5`}>
             <div className={`relative w-full h-full ${state === 'X' ? 'text-cyan-400' : 'text-pink-500'}`}>
               <div className={playPlacementEffect ? effectIdClass : ''}>
-                <div className={isLastMove ? 'last-move-highlight' : ''}>
-                  {state === 'X' ? <PieceX /> : <PieceO />}
+                <div className={`${isLastMove ? 'last-move-highlight' : ''} ${isGlowingPiece ? 'threat-piece-glow' : ''}`}>
+                    {state === 'X' ? <PieceX /> : <PieceO />}
                 </div>
               </div>
             </div>
@@ -58,10 +59,15 @@ interface GameBoardProps {
   theme: GameTheme;
   lastMove: { row: number; col: number } | null;
   effect: PieceEffect;
+  glowingPieces: { row: number; col: number }[];
 }
 
-const GameBoard: React.FC<GameBoardProps> = ({ board, onCellClick, winningLine, pieces, aiThinkingCell, theme, lastMove, effect }) => {
+const GameBoard: React.FC<GameBoardProps> = ({ board, onCellClick, winningLine, pieces, aiThinkingCell, theme, lastMove, effect, glowingPieces }) => {
   const isWinningCell = (row: number, col: number) => winningLine.some(cell => cell.row === row && cell.col === col);
+  
+  const isGlowing = (row: number, col: number) => {
+    return glowingPieces.some(p => p.row === row && p.col === col);
+  };
 
   return (
     <div
@@ -81,6 +87,7 @@ const GameBoard: React.FC<GameBoardProps> = ({ board, onCellClick, winningLine, 
               playPlacementEffect={lastMove?.row === rowIndex && lastMove?.col === colIndex}
               isLastMove={lastMove?.row === rowIndex && lastMove?.col === colIndex}
               effect={effect}
+              isGlowingPiece={isGlowing(rowIndex, colIndex)}
             />
           </div>
         ))

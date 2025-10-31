@@ -59,7 +59,8 @@ const AuthScreen: React.FC = () => {
             loginEmail = `${email}@gmail.com`;
         }
         await signInWithEmailAndPassword(auth, loginEmail, password);
-        await enableNetwork(db); // Re-enable network after successful login
+        // FIX: enableNetwork function call expects 0 arguments.
+        await enableNetwork(); // Re-enable network after successful login
       } else {
         if (!agreedToTerms) {
             throw new Error("You must agree to the Terms of Service.");
@@ -86,7 +87,8 @@ const AuthScreen: React.FC = () => {
         }
 
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-        await enableNetwork(db); // Re-enable network after successful signup
+        // FIX: enableNetwork function call expects 0 arguments.
+        await enableNetwork(); // Re-enable network after successful signup
         if (userCredential.user) {
           await updateProfile(userCredential.user, { displayName: trimmedDisplayName });
           await onlineService.createUserProfile(userCredential.user, trimmedDisplayName);
@@ -137,7 +139,8 @@ const AuthScreen: React.FC = () => {
     playSound('confirm');
     try {
         await signInAnonymously(auth);
-        await enableNetwork(db); // Re-enable network after successful guest login
+        // FIX: enableNetwork function call expects 0 arguments.
+        await enableNetwork(); // Re-enable network after successful guest login
     } catch(err: any) {
         setError(err.message || 'Could not sign in as guest.');
     } finally {

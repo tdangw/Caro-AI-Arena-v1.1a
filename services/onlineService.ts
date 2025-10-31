@@ -1,26 +1,7 @@
+import firebase from 'firebase/compat/app';
+import 'firebase/compat/database';
+import 'firebase/compat/firestore';
 import { auth, db, rtdb } from '../firebaseConfig';
-import { onValue, ref, set, onDisconnect, serverTimestamp as rtdbServerTimestamp } from "firebase/database";
-import { 
-    collection, 
-    doc, 
-    getDoc, 
-    getDocs, 
-    setDoc, 
-    updateDoc, 
-    deleteDoc,
-    writeBatch, 
-    runTransaction, 
-    onSnapshot, 
-    query, 
-    where, 
-    limit, 
-    orderBy,
-    increment,
-    arrayUnion,
-    serverTimestamp as firestoreServerTimestamp,
-    addDoc,
-    arrayRemove
-} from 'firebase/firestore';
 import { type User } from 'firebase/auth';
 import type { UserProfile, OnlinePlayer, BoardState, Player, Invitation, OnlineGame, BoardMap, Avatar, Emoji, MatchHistoryEntry, Friend, ChatMessage, LockerItem, Notification, Cosmetic, PurchaseHistoryEntry, GiftHistoryEntry, AnimatedEmoji, PveMatchHistoryEntry } from '../types';
 import { DEFAULT_THEME, DEFAULT_PIECES_X, DEFAULT_AVATAR, DEFAULT_EFFECT, DEFAULT_VICTORY_EFFECT, DEFAULT_BOOM_EFFECT, ALL_COSMETICS, BOARD_SIZE, WINNING_LENGTH, EMOJIS, INITIAL_GAME_TIME, TURN_TIME, DEFAULT_BOARD_STYLE } from '../constants';
@@ -135,18 +116,18 @@ export const getRandomEmoji = (): Emoji => {
 // --- User Profile Management ---
 export const createUserProfile = async (user: User, name: string): Promise<void> => {
     console.log(`[createUserProfile] Called for UID: ${user.uid}. Auth displayName: "${user.displayName}", name param: "${name}"`);
-    const userRef = doc(db, 'users', user.uid);
-    const docSnap = await getDoc(userRef);
+    const userRef = db.collection('users').doc(user.uid);
+    const docSnap = await userRef.get();
 
     // If profile already exists, handle race condition
-    if (docSnap.exists()) {
+    if (docSnap.exists) {
         console.log(`[createUserProfile] Profile already exists. Checking for name update.`);
         const existingData = docSnap.data() as UserProfile;
         const newName = name.trim() || user.displayName; // Prioritize passed name
 
         if (existingData.name.startsWith('Player_') && newName && !newName.startsWith('Player_')) {
             console.log(`[createUserProfile] Correcting default name "${existingData.name}" to "${newName}".`);
-            await updateDoc(userRef, { name: newName });
+            await userRef.update({ name: newName });
         } else {
             console.log(`[createUserProfile] Existing name "${existingData.name}" is not default. No action taken.`);
         }
@@ -205,19 +186,20 @@ export const createUserProfile = async (user: User, name: string): Promise<void>
         activeBoomEffectId: DEFAULT_BOOM_EFFECT.id,
         activeBoardId: DEFAULT_BOARD_STYLE.id,
         statusMessage: "Available for a match!",
+        showThreats: false,
     };
-    await setDoc(userRef, userProfile);
+    await userRef.set(userProfile);
 };
 
 export const getUserProfile = async (uid: string): Promise<UserProfile | null> => {
-    const userRef = doc(db, 'users', uid);
-    const docSnap = await getDoc(userRef);
-    return docSnap.exists() ? (docSnap.data() as UserProfile) : null;
+    const userRef = db.collection('users').doc(uid);
+    const docSnap = await userRef.get();
+    return docSnap.exists ? (docSnap.data() as UserProfile) : null;
 };
 
 export const updateUserProfile = async (uid: string, data: Partial<UserProfile>): Promise<void> => {
-    const userRef = doc(db, 'users', uid);
-    await setDoc(userRef, data, { merge: true });
+    const userRef = db.collection('users').doc(uid);
+    await userRef.set(data, { merge: true });
 };
 
 export const updateProfileWithGameResult = async (
@@ -231,12 +213,12 @@ export const updateProfileWithGameResult = async (
     gameId: string | null,
     opponentId?: string
 ) => {
-    const userRef = doc(db, 'users', uid);
+    const userRef = db.collection('users').doc(uid);
 
     try {
-        await runTransaction(db, async (transaction) => {
+        await db.runTransaction(async (transaction) => {
             const userDoc = await transaction.get(userRef);
-            if (!userDoc.exists()) {
+            if (!userDoc.exists) {
                 throw "Document does not exist!";
             }
 
@@ -251,13 +233,13 @@ export const updateProfileWithGameResult = async (
             const updates: { [key: string]: any } = {
                 level: newLevel,
                 xp: newXp,
-                coins: increment(coinsToAdd),
+                coins: firebase.firestore.FieldValue.increment(coinsToAdd),
             };
 
             if (isPVE) {
-                if (result === 'win') updates.pveWins = increment(1);
-                else if (result === 'loss') updates.pveLosses = increment(1);
-                else if (result === 'draw') updates.pveDraws = increment(1);
+                if (result === 'win') updates.pveWins = firebase.firestore.FieldValue.increment(1);
+                else if (result === 'loss') updates.pveLosses = firebase.firestore.FieldValue.increment(1);
+                else if (result === 'draw') updates.pveDraws = firebase.firestore.FieldValue.increment(1);
                 
                 if (opponentId) {
                     const statToUpdate = result === 'win' ? 'wins' : result === 'loss' ? 'losses' : 'draws';
@@ -268,13 +250,13 @@ export const updateProfileWithGameResult = async (
                          newBotStats[opponentId][statToUpdate] = 1;
                          updates.botStats = newBotStats;
                     } else {
-                        updates[`botStats.${opponentId}.${statToUpdate}`] = increment(1);
+                        updates[`botStats.${opponentId}.${statToUpdate}`] = firebase.firestore.FieldValue.increment(1);
                     }
                 }
             } else { // Online
-                if (result === 'win') updates.onlineWins = increment(1);
-                else if (result === 'loss') updates.onlineLosses = increment(1);
-                else if (result === 'draw') updates.onlineDraws = increment(1);
+                if (result === 'win') updates.onlineWins = firebase.firestore.FieldValue.increment(1);
+                else if (result === 'loss') updates.onlineLosses = firebase.firestore.FieldValue.increment(1);
+                else if (result === 'draw') updates.onlineDraws = firebase.firestore.FieldValue.increment(1);
                 
                 if (cpChange !== 0) {
                     const currentCp = userData.cp || 0;
@@ -283,7 +265,7 @@ export const updateProfileWithGameResult = async (
             }
             
             if (gameId) {
-                updates.processedGameIds = arrayUnion(gameId); // Use arrayUnion for safer array updates
+                updates.processedGameIds = firebase.firestore.FieldValue.arrayUnion(gameId); // Use arrayUnion for safer array updates
             }
             
             transaction.update(userRef, updates);
@@ -296,11 +278,11 @@ export const updateProfileWithGameResult = async (
 export const updateAuthAndProfileName = async (user: User, name: string) => {
     await updateUserProfile(user.uid, { name });
 
-    const onlineUserRef = doc(db, 'onlineUsers', user.uid);
+    const onlineUserRef = db.collection('onlineUsers').doc(user.uid);
     try {
-        const onlineUserSnap = await getDoc(onlineUserRef);
-        if (onlineUserSnap.exists()) {
-            await updateDoc(onlineUserRef, { name });
+        const onlineUserSnap = await onlineUserRef.get();
+        if (onlineUserSnap.exists) {
+            await onlineUserRef.update({ name });
         }
     } catch(e) {
         console.warn("Could not update online user name, document may not exist yet.");
@@ -308,9 +290,10 @@ export const updateAuthAndProfileName = async (user: User, name: string) => {
 };
 
 export const isDisplayNameTaken = async (name: string): Promise<boolean> => {
-    const usersCol = collection(db, "users");
-    const q = query(usersCol, where("name", "==", name.trim()), limit(1));
-    const querySnapshot = await getDocs(q);
+    const usersCol = db.collection("users");
+    const q = usersCol.where("name", "==", name.trim()).limit(1);
+    const querySnapshot = await q.get();
+    // FIX: `empty` is a boolean property, not a method.
     return !querySnapshot.empty;
 };
 
@@ -333,11 +316,12 @@ export const updatePlayerName = async (user: User, newName: string): Promise<{ s
 }
 
 export const purchaseItemTransaction = async (uid: string, cosmetic: Cosmetic): Promise<{success: boolean, message: string}> => {
-    const userRef = doc(db, 'users', uid);
+    const userRef = db.collection('users').doc(uid);
     try {
-        await runTransaction(db, async (transaction) => {
+        await db.runTransaction(async (transaction) => {
             const userDoc = await transaction.get(userRef);
-            if (!userDoc.exists()) {
+            // FIX: `exists` is a boolean property, not a method.
+            if (!userDoc.exists) {
                 throw new Error("User profile not found.");
             }
             const userData = userDoc.data() as UserProfile;
@@ -361,7 +345,7 @@ export const purchaseItemTransaction = async (uid: string, cosmetic: Cosmetic): 
                 newInventory[cosmetic.id] = (newInventory[cosmetic.id] || 0) + 1;
                 updates.emojiInventory = newInventory;
             } else {
-                updates.ownedCosmeticIds = arrayUnion(cosmetic.id);
+                updates.ownedCosmeticIds = firebase.firestore.FieldValue.arrayUnion(cosmetic.id);
                 // Also equip the item upon purchase
                 switch (cosmetic.type) {
                     case 'theme': updates.activeThemeId = cosmetic.item.id; break;
@@ -376,12 +360,12 @@ export const purchaseItemTransaction = async (uid: string, cosmetic: Cosmetic): 
 
             transaction.update(userRef, updates);
             
-            const historyRef = doc(collection(db, `users/${uid}/purchaseHistory`));
+            const historyRef = db.collection(`users/${uid}/purchaseHistory`).doc();
             transaction.set(historyRef, {
                 cosmeticId: cosmetic.id,
                 cosmeticName: cosmetic.name,
                 price: cosmetic.price,
-                timestamp: firestoreServerTimestamp()
+                timestamp: firebase.firestore.FieldValue.serverTimestamp()
             });
         });
         return { success: true, message: 'Purchase successful!' };
@@ -394,47 +378,47 @@ export const purchaseItemTransaction = async (uid: string, cosmetic: Cosmetic): 
 // --- Presence System ---
 export const setupPresenceSystem = async (user: User, level: number, avatarUrl: string, name: string, statusMessage?: string) => {
     const uid = user.uid;
-    const userStatusDatabaseRef = ref(rtdb, `/status/${uid}`);
-    const userStatusFirestoreRef = doc(db, 'onlineUsers', uid);
+    const userStatusDatabaseRef = rtdb.ref(`/status/${uid}`);
+    const userStatusFirestoreRef = db.collection('onlineUsers').doc(uid);
 
-    const docSnap = await getDoc(userStatusFirestoreRef);
-    const currentStatus = docSnap.exists() ? docSnap.data()?.status : 'idle';
+    const docSnap = await userStatusFirestoreRef.get();
+    const currentStatus = docSnap.exists ? docSnap.data()?.status : 'idle';
 
     if (currentStatus === 'in_game' || currentStatus === 'in_queue') {
-        onValue(ref(rtdb, '.info/connected'), (snapshot) => {
+        rtdb.ref('.info/connected').on('value', (snapshot) => {
             if (snapshot.val() === false) return;
-            onDisconnect(userStatusDatabaseRef).set({ state: 'offline', last_changed: rtdbServerTimestamp() }).then(() => {
-                set(userStatusDatabaseRef, { state: 'online', last_changed: rtdbServerTimestamp() });
+            userStatusDatabaseRef.onDisconnect().set({ state: 'offline', last_changed: firebase.database.ServerValue.TIMESTAMP }).then(() => {
+                userStatusDatabaseRef.set({ state: 'online', last_changed: firebase.database.ServerValue.TIMESTAMP });
             });
         });
         console.log(`Presence system: User is '${currentStatus}'. Preserving status.`);
         return;
     }
 
-    const isOnlineForDatabase = { state: 'online', last_changed: rtdbServerTimestamp() };
-    const isOfflineForDatabase = { state: 'offline', last_changed: rtdbServerTimestamp() };
+    const isOnlineForDatabase = { state: 'online', last_changed: firebase.database.ServerValue.TIMESTAMP };
+    const isOfflineForDatabase = { state: 'offline', last_changed: firebase.database.ServerValue.TIMESTAMP };
 
-    onValue(ref(rtdb, '.info/connected'), (snapshot) => {
+    rtdb.ref('.info/connected').on('value', (snapshot) => {
         if (snapshot.val() === false) {
             return;
         }
 
-        onDisconnect(userStatusDatabaseRef).set(isOfflineForDatabase).then(async () => {
-            await set(userStatusDatabaseRef, isOnlineForDatabase);
+        userStatusDatabaseRef.onDisconnect().set(isOfflineForDatabase).then(async () => {
+            await userStatusDatabaseRef.set(isOnlineForDatabase);
             const userProfile = await getUserProfile(uid);
             const isOnlineForFirestore: OnlinePlayer = { uid, name, level, avatarUrl, status: 'idle', cp: userProfile?.cp || 0, statusMessage: statusMessage || "Available for a match!" };
-            await setDoc(userStatusFirestoreRef, isOnlineForFirestore);
+            await userStatusFirestoreRef.set(isOnlineForFirestore);
             console.log("Presence system: User status set to 'idle'.");
         });
     });
 };
 
 export const updateStatusMessage = async (uid: string, message: string) => {
-    const onlineUserRef = doc(db, 'onlineUsers', uid);
-    const userProfileRef = doc(db, 'users', uid);
+    const onlineUserRef = db.collection('onlineUsers').doc(uid);
+    const userProfileRef = db.collection('users').doc(uid);
     try {
-        await updateDoc(onlineUserRef, { statusMessage: message });
-        await updateDoc(userProfileRef, { statusMessage: message });
+        await onlineUserRef.update({ statusMessage: message });
+        await userProfileRef.update({ statusMessage: message });
     } catch (e) {
         console.warn("Could not update status message, user might be offline.", e);
     }
@@ -442,28 +426,27 @@ export const updateStatusMessage = async (uid: string, message: string) => {
 
 
 export const goOffline = async (uid: string) => {
-    const userStatusFirestoreRef = doc(db, 'onlineUsers', uid);
+    const userStatusFirestoreRef = db.collection('onlineUsers').doc(uid);
     try {
-        await deleteDoc(userStatusFirestoreRef);
+        await userStatusFirestoreRef.delete();
     } catch(e) { console.error("Error deleting online user doc:", e); }
 
-    const userStatusDatabaseRef = ref(rtdb, `/status/${uid}`);
-    await set(userStatusDatabaseRef, {
+    const userStatusDatabaseRef = rtdb.ref(`/status/${uid}`);
+    await userStatusDatabaseRef.set({
         state: 'offline',
-        last_changed: rtdbServerTimestamp(),
+        last_changed: firebase.database.ServerValue.TIMESTAMP,
     });
 };
 
 
 // --- Lobby & Matchmaking ---
 export const getOnlinePlayers = (callback: (players: OnlinePlayer[]) => void): (() => void) => {
-    const onlineUsersCol = collection(db, "onlineUsers");
-    const statusRef = ref(rtdb, 'status');
+    const onlineUsersCol = db.collection("onlineUsers");
+    const statusRef = rtdb.ref('status');
 
     let onlineUsers: OnlinePlayer[] = [];
     let onlineStatuses: { [uid: string]: { state: string, last_changed: any } } = {};
     let unsubFirestore: (() => void) | null = null;
-    let unsubRtdb: (() => void) | null = null;
     
     // To prevent race conditions on initial load
     let firestoreLoaded = false;
@@ -491,48 +474,48 @@ export const getOnlinePlayers = (callback: (players: OnlinePlayer[]) => void): (
     };
 
     // Listener for Firestore's onlineUsers collection
-    unsubFirestore = onSnapshot(onlineUsersCol, (snapshot) => {
+    unsubFirestore = onlineUsersCol.onSnapshot((snapshot) => {
         onlineUsers = snapshot.docs.map(doc => doc.data() as OnlinePlayer);
         firestoreLoaded = true;
         updateAndCleanup();
     }, (error) => console.error("Firestore listener error:", error));
 
-    // Listener for RTDB's status node
-    unsubRtdb = onValue(statusRef, (snapshot) => {
+    const rtdbCallback = (snapshot: firebase.database.DataSnapshot) => {
         onlineStatuses = snapshot.val() || {};
         rtdbLoaded = true;
         updateAndCleanup();
-    }, (error) => console.error("RTDB listener error:", error));
+    };
+    statusRef.on('value', rtdbCallback, (error) => console.error("RTDB listener error:", error));
 
     // Return a function to unsubscribe from both listeners
     return () => {
         if (unsubFirestore) unsubFirestore();
-        if (unsubRtdb) unsubRtdb();
+        statusRef.off('value', rtdbCallback);
     };
 };
 
 export const getOnlineUser = async (uid: string): Promise<OnlinePlayer | null> => {
-    const docRef = doc(db, 'onlineUsers', uid);
-    const docSnap = await getDoc(docRef);
-    return docSnap.exists() ? docSnap.data() as OnlinePlayer : null;
+    const docRef = db.collection('onlineUsers').doc(uid);
+    const docSnap = await docRef.get();
+    return docSnap.exists ? docSnap.data() as OnlinePlayer : null;
 };
 
 export const joinMatchmakingQueue = async (user: User): Promise<string | null> => {
-    const q = query(collection(db, "matchmakingQueue"), where("uid", "!=", user.uid), limit(1));
-    const querySnapshot = await getDocs(q);
+    const q = db.collection("matchmakingQueue").where("uid", "!=", user.uid).limit(1);
+    const querySnapshot = await q.get();
 
     if (querySnapshot.empty) {
-        await setDoc(doc(db, "matchmakingQueue", user.uid), { uid: user.uid, joinedAt: firestoreServerTimestamp() });
-        await updateDoc(doc(db, "onlineUsers", user.uid), { status: 'in_queue' });
+        await db.collection("matchmakingQueue").doc(user.uid).set({ uid: user.uid, joinedAt: firebase.firestore.FieldValue.serverTimestamp() });
+        await db.collection("onlineUsers").doc(user.uid).update({ status: 'in_queue' });
         return null;
     } else {
         const opponentDoc = querySnapshot.docs[0];
         const opponentUid = opponentDoc.id;
         const gameId = await createOnlineGame(user.uid, opponentUid);
-        const batch = writeBatch(db);
-        batch.delete(doc(db, "matchmakingQueue", opponentDoc.id));
-        batch.update(doc(db, "onlineUsers", user.uid), { status: 'in_game', gameId });
-        batch.update(doc(db, "onlineUsers", opponentUid), { status: 'in_game', gameId });
+        const batch = db.batch();
+        batch.delete(db.collection("matchmakingQueue").doc(opponentDoc.id));
+        batch.update(db.collection("onlineUsers").doc(user.uid), { status: 'in_game', gameId });
+        batch.update(db.collection("onlineUsers").doc(opponentUid), { status: 'in_game', gameId });
         await batch.commit();
         return gameId;
     }
@@ -541,8 +524,8 @@ export const joinMatchmakingQueue = async (user: User): Promise<string | null> =
 export const cancelMatchmaking = async (uid: string) => {
       if (!uid) return;
       try {
-        await deleteDoc(doc(db, "matchmakingQueue", uid));
-        await updateDoc(doc(db, "onlineUsers", uid), { status: 'idle' });
+        await db.collection("matchmakingQueue").doc(uid).delete();
+        await db.collection("onlineUsers").doc(uid).update({ status: 'idle' });
       } catch(e) {
         console.warn("Could not cancel matchmaking, user might have already found a game.");
       }
@@ -550,8 +533,8 @@ export const cancelMatchmaking = async (uid: string) => {
 
 // --- Leaderboard & Match History ---
 export const getLeaderboard = async (limitCount = 100): Promise<OnlinePlayer[]> => {
-    const q = query(collection(db, "users"), orderBy("cp", "desc"), limit(limitCount));
-    const querySnapshot = await getDocs(q);
+    const q = db.collection("users").orderBy("cp", "desc").limit(limitCount);
+    const querySnapshot = await q.get();
     const leaderboardPlayers: OnlinePlayer[] = querySnapshot.docs.map(doc => {
         const user = doc.data() as UserProfile;
         return {
@@ -567,33 +550,33 @@ export const getLeaderboard = async (limitCount = 100): Promise<OnlinePlayer[]> 
 };
 
 export const recordMatchHistory = async (uid: string, gameId: string, entry: Omit<MatchHistoryEntry, 'id'>) => {
-    const historyRef = doc(db, `users/${uid}/matchHistory`, gameId);
-    await setDoc(historyRef, { id: gameId, ...entry });
+    const historyRef = db.collection(`users/${uid}/matchHistory`).doc(gameId);
+    await historyRef.set({ id: gameId, ...entry });
 };
 
 export const getMatchHistory = async (uid: string): Promise<MatchHistoryEntry[]> => {
-    const historyCol = collection(db, `users/${uid}/matchHistory`);
-    const q = query(historyCol, orderBy("timestamp", "desc"), limit(10));
-    const querySnapshot = await getDocs(q);
+    const historyCol = db.collection(`users/${uid}/matchHistory`);
+    const q = historyCol.orderBy("timestamp", "desc").limit(10);
+    const querySnapshot = await q.get();
     return querySnapshot.docs.map(doc => doc.data() as MatchHistoryEntry);
 };
 
 export const recordPveMatchHistory = async (uid: string, entry: PveMatchHistoryEntry) => {
-    const historyRef = doc(db, `users/${uid}/pveMatchHistory`, entry.id);
-    await setDoc(historyRef, entry);
+    const historyRef = db.collection(`users/${uid}/pveMatchHistory`).doc(entry.id);
+    await historyRef.set(entry);
 };
 
 export const getPveMatchHistory = async (uid: string): Promise<PveMatchHistoryEntry[]> => {
-    const historyCol = collection(db, `users/${uid}/pveMatchHistory`);
-    const q = query(historyCol, orderBy("timestamp", "desc"), limit(50));
-    const querySnapshot = await getDocs(q);
+    const historyCol = db.collection(`users/${uid}/pveMatchHistory`);
+    const q = historyCol.orderBy("timestamp", "desc").limit(50);
+    const querySnapshot = await q.get();
     return querySnapshot.docs.map(doc => doc.data() as PveMatchHistoryEntry);
 };
 
 // --- Invitations ---
 export const sendInvitation = async (fromUser: User, fromName: string, toUid: string) => {
-    const invitationRef = doc(db, 'invitations', toUid);
-    await setDoc(invitationRef, {
+    const invitationRef = db.collection('invitations').doc(toUid);
+    await invitationRef.set({
         from: fromUser.uid,
         fromName: fromName,
         timestamp: Date.now(),
@@ -601,29 +584,29 @@ export const sendInvitation = async (fromUser: User, fromName: string, toUid: st
 };
 
 export const listenForInvitations = (uid: string, callback: (invitation: Invitation | null) => void): (() => void) => {
-    return onSnapshot(doc(db, 'invitations', uid), (doc) => {
-        callback(doc.exists() ? doc.data() as Invitation : null);
+    return db.collection('invitations').doc(uid).onSnapshot((doc) => {
+        callback(doc.exists ? doc.data() as Invitation : null);
     });
 };
 
 export const acceptInvitation = async (user: User, invitation: Invitation): Promise<string | null> => {
     const gameId = await createOnlineGame(user.uid, invitation.from);
-    const batch = writeBatch(db);
-    batch.update(doc(db, "onlineUsers", user.uid), { status: 'in_game', gameId });
-    batch.update(doc(db, "onlineUsers", invitation.from), { status: 'in_game', gameId });
-    batch.delete(doc(db, "invitations", user.uid));
+    const batch = db.batch();
+    batch.update(db.collection("onlineUsers").doc(user.uid), { status: 'in_game', gameId });
+    batch.update(db.collection("onlineUsers").doc(invitation.from), { status: 'in_game', gameId });
+    batch.delete(db.collection("invitations").doc(user.uid));
     await batch.commit();
     return gameId;
 };
 
 export const declineInvitation = async (uid: string) => {
-    await deleteDoc(doc(db, "invitations", uid));
+    await db.collection("invitations").doc(uid).delete();
 };
 
 // --- Game Logic ---
 export const createOnlineGame = async (player1Uid: string, player2Uid: string): Promise<string> => {
     const gameId = `game_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-    const gameRef = doc(db, 'games', gameId);
+    const gameRef = db.collection('games').doc(gameId);
 
     const [p1Profile, p2Profile] = await Promise.all([
         getUserProfile(player1Uid),
@@ -665,43 +648,43 @@ export const createOnlineGame = async (player1Uid: string, player2Uid: string): 
         turnStartedAt: Date.now(),
         chatId: gameId,
     };
-    await setDoc(gameRef, gameData);
+    await gameRef.set(gameData);
     return gameId;
 };
 
 export const sendOnlineEmote = async (gameId: string, uid: string, emoji: string) => {
-    const gameRef = doc(db, 'games', gameId);
+    const gameRef = db.collection('games').doc(gameId);
     try {
-        await updateDoc(gameRef, {
+        await gameRef.update({
             emotes: { uid, emoji, timestamp: Date.now() }
         });
     } catch (error) { console.error("Failed to send emote:", error); }
 };
 
 export const getOnlineGame = async (gameId: string): Promise<OnlineGame | null> => {
-    const docRef = doc(db, 'games', gameId);
-    const docSnap = await getDoc(docRef);
-    return docSnap.exists() ? docSnap.data() as OnlineGame : null;
+    const docRef = db.collection('games').doc(gameId);
+    const docSnap = await docRef.get();
+    return docSnap.exists ? docSnap.data() as OnlineGame : null;
 };
 
 export const listenForGameStart = (uid: string, callback: (playerData: OnlinePlayer | null) => void): (() => void) => {
-    return onSnapshot(doc(db, 'onlineUsers', uid), (doc) => {
-        callback(doc.exists() ? doc.data() as OnlinePlayer : null);
+    return db.collection('onlineUsers').doc(uid).onSnapshot((doc) => {
+        callback(doc.exists ? doc.data() as OnlinePlayer : null);
     });
 };
 
 export const getOnlineGameStream = (gameId: string, callback: (game: OnlineGame | null) => void): (() => void) => {
-    return onSnapshot(doc(db, 'games', gameId), (docSnap) => {
-        callback(docSnap.exists() ? docSnap.data() as OnlineGame : null);
+    return db.collection('games').doc(gameId).onSnapshot((docSnap) => {
+        callback(docSnap.exists ? docSnap.data() as OnlineGame : null);
     });
 };
 
 export const makeOnlineMove = async (gameId: string, row: number, col: number, player: Player) => {
-    const gameRef = doc(db, 'games', gameId);
+    const gameRef = db.collection('games').doc(gameId);
     try {
-        await runTransaction(db, async (transaction) => {
+        await db.runTransaction(async (transaction) => {
             const gameDoc = await transaction.get(gameRef);
-            if (!gameDoc.exists()) return;
+            if (!gameDoc.exists) return;
 
             const gameData = gameDoc.data() as OnlineGame;
             if (gameData.status !== 'in_progress' || gameData.currentPlayer !== player) return;
@@ -736,11 +719,11 @@ export const makeOnlineMove = async (gameId: string, row: number, col: number, p
 };
 
 export const claimTimeoutVictory = async (gameId: string, claimant: Player) => {
-    const gameRef = doc(db, 'games', gameId);
+    const gameRef = db.collection('games').doc(gameId);
     try {
-        await runTransaction(db, async (transaction) => {
+        await db.runTransaction(async (transaction) => {
             const gameDoc = await transaction.get(gameRef);
-            if (!gameDoc.exists() || gameDoc.data()?.status !== 'in_progress') return;
+            if (!gameDoc.exists || gameDoc.data()?.status !== 'in_progress') return;
             
             const gameData = gameDoc.data() as OnlineGame;
             if (gameData.currentPlayer !== claimant) {
@@ -759,20 +742,20 @@ export const claimTimeoutVictory = async (gameId: string, claimant: Player) => {
 };
 
 export const updatePlayerPieceSkin = async (gameId: string, uid: string, pieceId: string) => {
-    const gameRef = doc(db, 'games', gameId);
+    const gameRef = db.collection('games').doc(gameId);
     try {
-        await updateDoc(gameRef, { [`playerDetails.${uid}.pieceId`]: pieceId });
+        await gameRef.update({ [`playerDetails.${uid}.pieceId`]: pieceId });
     } catch (error) {
         console.log("Could not update piece skin (game may be over):", error);
     }
 };
 
 export const resignOnlineGame = async (gameId: string, resigningPlayer: Player) => {
-    const gameRef = doc(db, 'games', gameId);
+    const gameRef = db.collection('games').doc(gameId);
     try {
-        await runTransaction(db, async (transaction) => {
+        await db.runTransaction(async (transaction) => {
             const gameDoc = await transaction.get(gameRef);
-            if (!gameDoc.exists() || gameDoc.data()?.status !== 'in_progress') {
+            if (!gameDoc.exists || gameDoc.data()?.status !== 'in_progress') {
                 return; // Game already over or doesn't exist
             }
             transaction.update(gameRef, {
@@ -786,11 +769,11 @@ export const resignOnlineGame = async (gameId: string, resigningPlayer: Player) 
 };
 
 export const returnToLobby = async (uid: string) => {
-    const userStatusRef = doc(db, 'onlineUsers', uid);
+    const userStatusRef = db.collection('onlineUsers').doc(uid);
     try {
-        const docSnap = await getDoc(userStatusRef);
-        if (docSnap.exists()) {
-            await updateDoc(userStatusRef, { status: 'idle', gameId: null });
+        const docSnap = await userStatusRef.get();
+        if (docSnap.exists) {
+            await userStatusRef.update({ status: 'idle', gameId: null });
         }
     } catch (e) {
         console.error("Failed to return user to lobby:", e);
@@ -804,27 +787,25 @@ export const leaveOnlineGame = async (gameId: string, uid: string) => {
 export const cleanupOldGames = async (): Promise<void> => {
     const thirtyMinutesAgo = Date.now() - (30 * 60 * 1000);
     
-    const finishedGamesQuery = query(collection(db, 'games'), 
-        where('status', '==', 'finished'), 
-        where('updatedAt', '<', thirtyMinutesAgo)
-    );
+    const finishedGamesQuery = db.collection('games')
+        .where('status', '==', 'finished') 
+        .where('updatedAt', '<', thirtyMinutesAgo);
 
-    const inactiveGamesQuery = query(collection(db, 'games'),
-        where('status', '==', 'in_progress'),
-        where('updatedAt', '<', thirtyMinutesAgo)
-    );
+    const inactiveGamesQuery = db.collection('games')
+        .where('status', '==', 'in_progress')
+        .where('updatedAt', '<', thirtyMinutesAgo);
 
     try {
         const [finishedGamesSnapshot, inactiveGamesSnapshot] = await Promise.all([
-            getDocs(finishedGamesQuery),
-            getDocs(inactiveGamesQuery)
+            finishedGamesQuery.get(),
+            inactiveGamesQuery.get()
         ]);
 
         if (finishedGamesSnapshot.empty && inactiveGamesSnapshot.empty) {
             return;
         }
         
-        const batch = writeBatch(db);
+        const batch = db.batch();
         let count = 0;
 
         finishedGamesSnapshot.forEach(doc => {
@@ -853,11 +834,11 @@ export const getChatId = (id1: string, id2: string): string => {
 };
 
 export const sendMessage = async (chatId: string, senderId: string, senderName: string, text: string): Promise<void> => {
-    const messagesCol = collection(db, `chats/${chatId}/messages`);
-    const messageDocRef = await addDoc(messagesCol, {
+    const messagesCol = db.collection(`chats/${chatId}/messages`);
+    const messageDocRef = await messagesCol.add({
         senderId,
         text,
-        timestamp: firestoreServerTimestamp()
+        timestamp: firebase.firestore.FieldValue.serverTimestamp()
     });
 
     // Also create a notification for the recipient
@@ -873,34 +854,34 @@ export const sendMessage = async (chatId: string, senderId: string, senderName: 
             }
         }
         
-        const notificationRef = doc(db, `users/${recipientId}/notifications`, messageDocRef.id);
-        await setDoc(notificationRef, {
+        const notificationRef = db.collection(`users/${recipientId}/notifications`).doc(messageDocRef.id);
+        await notificationRef.set({
              type: 'message',
              text: notificationText,
              senderId,
              senderName,
-             timestamp: firestoreServerTimestamp(),
+             timestamp: firebase.firestore.FieldValue.serverTimestamp(),
              seen: false
         });
     }
 };
 
 export const listenForMessages = (chatId: string, callback: (messages: ChatMessage[]) => void): (() => void) => {
-    const messagesCol = collection(db, `chats/${chatId}/messages`);
-    const q = query(messagesCol, orderBy("timestamp", "desc"), limit(100));
-    return onSnapshot(q, (snapshot) => {
+    const messagesCol = db.collection(`chats/${chatId}/messages`);
+    const q = messagesCol.orderBy("timestamp", "desc").limit(100);
+    return q.onSnapshot((snapshot) => {
         const messages = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ChatMessage));
         callback(messages.reverse());
     });
 };
 
 export const listenForNewMessages = (chatId: string, currentUserId: string, callback: (message: ChatMessage) => void): (() => void) => {
-    const messagesCol = collection(db, `chats/${chatId}/messages`);
-    const q = query(messagesCol, orderBy("timestamp", "desc"), limit(1));
+    const messagesCol = db.collection(`chats/${chatId}/messages`);
+    const q = messagesCol.orderBy("timestamp", "desc").limit(1);
     
     let isFirstLoad = true;
     
-    return onSnapshot(q, (snapshot) => {
+    return q.onSnapshot((snapshot) => {
         if (isFirstLoad) {
             isFirstLoad = false;
             return;
@@ -919,32 +900,32 @@ export const listenForNewMessages = (chatId: string, currentUserId: string, call
 
 // --- Notifications ---
 export const listenForNotifications = (uid: string, callback: (notifications: Notification[]) => void): (() => void) => {
-    const notificationsCol = collection(db, `users/${uid}/notifications`);
-    const q = query(notificationsCol, orderBy("timestamp", "desc"), limit(50));
+    const notificationsCol = db.collection(`users/${uid}/notifications`);
+    const q = notificationsCol.orderBy("timestamp", "desc").limit(50);
     
-    return onSnapshot(q, (snapshot) => {
+    return q.onSnapshot((snapshot) => {
         const notifs = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Notification));
         callback(notifs);
     });
 };
 
 export const markNotificationAsSeen = async (uid: string, notificationId: string): Promise<void> => {
-    const notifRef = doc(db, `users/${uid}/notifications`, notificationId);
-    await updateDoc(notifRef, { seen: true });
+    const notifRef = db.collection(`users/${uid}/notifications`).doc(notificationId);
+    await notifRef.update({ seen: true });
 };
 
 export const deleteNotification = async (uid: string, notificationId: string): Promise<void> => {
-    const notifRef = doc(db, `users/${uid}/notifications`, notificationId);
-    await deleteDoc(notifRef);
+    const notifRef = db.collection(`users/${uid}/notifications`).doc(notificationId);
+    await notifRef.delete();
 };
 
 
 // --- Friends ---
 export const respondToFriendRequest = async (uid: string, friendUid: string, response: 'accept' | 'decline') => {
-    const userFriendRef = doc(db, `users/${uid}/friends`, friendUid);
-    const friendUserRef = doc(db, `users/${friendUid}/friends`, uid);
+    const userFriendRef = db.collection(`users/${uid}/friends`).doc(friendUid);
+    const friendUserRef = db.collection(`users/${friendUid}/friends`).doc(uid);
     
-    const batch = writeBatch(db);
+    const batch = db.batch();
 
     if (response === 'accept') {
         batch.update(userFriendRef, { status: 'friends' });
@@ -957,31 +938,31 @@ export const respondToFriendRequest = async (uid: string, friendUid: string, res
 };
 
 export const removeFriend = async (uid: string, friendUid: string) => {
-    const batch = writeBatch(db);
-    batch.delete(doc(db, `users/${uid}/friends`, friendUid));
-    batch.delete(doc(db, `users/${friendUid}/friends`, uid));
+    const batch = db.batch();
+    batch.delete(db.collection(`users/${uid}/friends`).doc(friendUid));
+    batch.delete(db.collection(`users/${friendUid}/friends`).doc(uid));
     await batch.commit();
 };
 
 export const listenForFriends = (uid: string, callback: (friends: Friend[]) => void): (() => void) => {
-    const friendsCol = collection(db, `users/${uid}/friends`);
-    return onSnapshot(friendsCol, (snapshot) => {
+    const friendsCol = db.collection(`users/${uid}/friends`);
+    return friendsCol.onSnapshot((snapshot) => {
         const friendsData = snapshot.docs.map(doc => ({ ...doc.data(), uid: doc.id } as Friend));
         callback(friendsData);
     });
 };
 
 export const getLocker = async (uid: string): Promise<LockerItem[]> => {
-    const lockerCol = collection(db, `users/${uid}/locker`);
-    const q = query(lockerCol, where("isClaimed", "==", false));
-    const querySnapshot = await getDocs(q);
+    const lockerCol = db.collection(`users/${uid}/locker`);
+    const q = lockerCol.where("isClaimed", "==", false);
+    const querySnapshot = await q.get();
     return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as LockerItem));
 };
 
 export const listenForLocker = (uid: string, callback: (items: LockerItem[]) => void): (() => void) => {
-    const lockerCol = collection(db, `users/${uid}/locker`);
-    const q = query(lockerCol, orderBy("receivedAt", "desc"));
-    return onSnapshot(q, (snapshot) => {
+    const lockerCol = db.collection(`users/${uid}/locker`);
+    const q = lockerCol.orderBy("receivedAt", "desc");
+    return q.onSnapshot((snapshot) => {
         const items = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as LockerItem));
         callback(items);
     });
@@ -996,9 +977,9 @@ export const sendFriendRequest = async (fromUid: string, toUid: string) => {
         return;
     }
 
-    const batch = writeBatch(db);
-    const fromFriendRef = doc(db, `users/${fromUid}/friends`, toUid);
-    const toFriendRef = doc(db, `users/${toUid}/friends`, fromUid);
+    const batch = db.batch();
+    const fromFriendRef = db.collection(`users/${fromUid}/friends`).doc(toUid);
+    const toFriendRef = db.collection(`users/${toUid}/friends`).doc(fromUid);
 
     const friendDataForSender: Omit<Friend, 'onlineStatus'> = {
         uid: toUid,
@@ -1019,13 +1000,13 @@ export const sendFriendRequest = async (fromUid: string, toUid: string) => {
     batch.set(toFriendRef, friendDataForReceiver);
     
     // Create a notification for the recipient
-    const notificationRef = doc(collection(db, `users/${toUid}/notifications`));
+    const notificationRef = db.collection(`users/${toUid}/notifications`).doc();
     batch.set(notificationRef, {
         type: 'friend_request',
         text: `sent you a friend request.`,
         senderId: fromUid,
         senderName: fromProfile.name,
-        timestamp: firestoreServerTimestamp(),
+        timestamp: firebase.firestore.FieldValue.serverTimestamp(),
         seen: false
     });
 
@@ -1036,11 +1017,12 @@ export const sendGift = async (fromUid: string, fromName: string, toUid: string,
     const cosmetic = ALL_COSMETICS.find(c => c.id === cosmeticId);
     if (!cosmetic) throw new Error(`Cosmetic with id ${cosmeticId} not found!`);
 
-    const recipientRef = doc(db, 'users', toUid);
+    const recipientRef = db.collection('users').doc(toUid);
 
-    await runTransaction(db, async (transaction) => {
+    await db.runTransaction(async (transaction) => {
         const recipientDoc = await transaction.get(recipientRef);
-        if (!recipientDoc.exists()) throw new Error("Recipient user not found.");
+        // FIX: `exists` is a boolean property, not a method.
+        if (!recipientDoc.exists) throw new Error("Recipient user not found.");
         
         const recipientProfile = recipientDoc.data() as UserProfile;
         const isConsumable = cosmetic.type === 'emoji' || cosmetic.type === 'animated_emoji';
@@ -1054,38 +1036,39 @@ export const sendGift = async (fromUid: string, fromName: string, toUid: string,
             }
         }
 
-        const lockerRef = doc(collection(db, `users/${toUid}/locker`));
+        const lockerRef = db.collection(`users/${toUid}/locker`).doc();
         transaction.set(lockerRef, {
             cosmeticId, fromUid, fromName,
-            receivedAt: firestoreServerTimestamp(),
+            receivedAt: firebase.firestore.FieldValue.serverTimestamp(),
             isClaimed: false
         });
 
         if (!isConsumable) {
             transaction.update(recipientRef, {
-                pendingGiftIds: arrayUnion(cosmeticId)
+                pendingGiftIds: firebase.firestore.FieldValue.arrayUnion(cosmeticId)
             });
         }
 
-        const notificationRef = doc(collection(db, `users/${toUid}/notifications`));
+        const notificationRef = db.collection(`users/${toUid}/notifications`).doc();
         transaction.set(notificationRef, {
             type: 'gift', text: `sent you a gift: ${cosmetic.name}!`,
             senderId: fromUid, senderName: fromName,
-            timestamp: firestoreServerTimestamp(), seen: false, cosmeticId: cosmeticId,
+            timestamp: firebase.firestore.FieldValue.serverTimestamp(), seen: false, cosmeticId: cosmeticId,
         });
     });
 };
 
 export const claimGift = async (uid: string, giftId: string): Promise<{success: boolean, message: string}> => {
-    const giftRef = doc(db, `users/${uid}/locker`, giftId);
-    const userRef = doc(db, `users`, uid);
+    const giftRef = db.collection(`users/${uid}/locker`).doc(giftId);
+    const userRef = db.collection(`users`).doc(uid);
 
     try {
-        await runTransaction(db, async (transaction) => {
+        await db.runTransaction(async (transaction) => {
             const giftDoc = await transaction.get(giftRef);
             const userDoc = await transaction.get(userRef);
 
-            if (!giftDoc.exists() || !userDoc.exists()) throw "Gift or user does not exist!";
+            // FIX: `exists` is a boolean property, not a method.
+            if (!giftDoc.exists || !userDoc.exists) throw "Gift or user does not exist!";
             
             const giftData = giftDoc.data() as LockerItem;
             if (giftData.isClaimed) return; // Already claimed, do nothing.
@@ -1114,7 +1097,7 @@ export const claimGift = async (uid: string, giftId: string): Promise<{success: 
 
             if (!isConsumable) {
                 transaction.update(userRef, {
-                    pendingGiftIds: arrayRemove(cosmetic.id)
+                    pendingGiftIds: firebase.firestore.FieldValue.arrayRemove(cosmetic.id)
                 });
             }
         });
@@ -1126,36 +1109,36 @@ export const claimGift = async (uid: string, giftId: string): Promise<{success: 
 };
 
 export const recordPurchase = async (uid: string, cosmetic: Cosmetic) => {
-    const historyCol = collection(db, `users/${uid}/purchaseHistory`);
-    await addDoc(historyCol, {
+    const historyCol = db.collection(`users/${uid}/purchaseHistory`);
+    await historyCol.add({
         cosmeticId: cosmetic.id,
         cosmeticName: cosmetic.name,
         price: cosmetic.price,
-        timestamp: firestoreServerTimestamp()
+        timestamp: firebase.firestore.FieldValue.serverTimestamp()
     });
 };
 
 export const getPurchaseHistory = async (uid: string): Promise<PurchaseHistoryEntry[]> => {
-    const historyCol = collection(db, `users/${uid}/purchaseHistory`);
-    const q = query(historyCol, orderBy("timestamp", "desc"), limit(50));
-    const querySnapshot = await getDocs(q);
+    const historyCol = db.collection(`users/${uid}/purchaseHistory`);
+    const q = historyCol.orderBy("timestamp", "desc").limit(50);
+    const querySnapshot = await q.get();
     return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as PurchaseHistoryEntry));
 };
 
 export const recordGiftSent = async (uid: string, recipientId: string, recipientName: string, cosmetic: Cosmetic) => {
-    const historyCol = collection(db, `users/${uid}/giftHistory`);
-    await addDoc(historyCol, {
+    const historyCol = db.collection(`users/${uid}/giftHistory`);
+    await historyCol.add({
         cosmeticId: cosmetic.id,
         cosmeticName: cosmetic.name,
         recipientId,
         recipientName,
-        timestamp: firestoreServerTimestamp()
+        timestamp: firebase.firestore.FieldValue.serverTimestamp()
     });
 };
 
 export const getGiftHistory = async (uid: string): Promise<GiftHistoryEntry[]> => {
-    const historyCol = collection(db, `users/${uid}/giftHistory`);
-    const q = query(historyCol, orderBy("timestamp", "desc"), limit(50));
-    const querySnapshot = await getDocs(q);
+    const historyCol = db.collection(`users/${uid}/giftHistory`);
+    const q = historyCol.orderBy("timestamp", "desc").limit(50);
+    const querySnapshot = await q.get();
     return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as GiftHistoryEntry));
 };

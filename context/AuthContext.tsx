@@ -30,7 +30,8 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         await onlineService.goOffline(user.uid);
     }
     // Disable Firestore network before signing out to prevent listener errors.
-    await disableNetwork(db);
+    // FIX: disableNetwork function call expects 0 arguments.
+    await disableNetwork();
     await signOut(auth);
   };
 

@@ -35,7 +35,7 @@ interface SettingsModalProps {
 }
 
 export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, onOpenShop, onOpenInventory, onResign, onLogOut }) => {
-  const { gameState, toggleSound, toggleMusic, setSoundVolume, setMusicVolume, equipMusic } = useGameState();
+  const { gameState, toggleSound, toggleMusic, setSoundVolume, setMusicVolume, equipMusic, toggleShowThreats } = useGameState();
   const { playSound } = useSound();
   const { user } = useAuth();
   const [isConfirmingLogout, setIsConfirmingLogout] = useState(false);
@@ -84,6 +84,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ isOpen, onClose, o
                 <input type="range" min="0" max="1" step="0.01" value={gameState.musicVolume} onChange={(e) => setMusicVolume(Number(e.target.value))} disabled={!gameState.isMusicOn} className="w-full h-2 bg-slate-600 rounded-lg appearance-none cursor-pointer" />
               </div>
               <button onClick={() => { playSound('select'); toggleMusic(); }} className={`font-bold w-12 text-center ${gameState.isMusicOn ? 'text-cyan-400' : 'text-slate-500'}`}>{gameState.isMusicOn ? 'ON' : 'OFF'}</button>
+            </div>
+            <div className="flex justify-between items-center px-4 py-3 hover:bg-slate-700/50 transition-colors">
+              <span className="font-semibold">Threat Warnings</span>
+              <button onClick={() => { playSound('select'); toggleShowThreats(); }} className={`font-bold w-12 text-center ${gameState.showThreats ? 'text-cyan-400' : 'text-slate-500'}`}>{gameState.showThreats ? 'ON' : 'OFF'}</button>
             </div>
           </div>
           <div>

@@ -1,12 +1,9 @@
 // FIX: Changed import to use the Firebase v9 compat layer for app initialization. This can resolve issues where the modular `firebase/app` package fails to provide the `initializeApp` export due to environment or versioning conflicts, while remaining compatible with the v9 modular services used elsewhere in the application.
 import firebase from 'firebase/compat/app';
-import { getAuth } from 'firebase/auth';
-import {
-  getFirestore,
-  enableNetwork,
-  disableNetwork,
-} from 'firebase/firestore';
-import { getDatabase } from 'firebase/database';
+// FIX: Use compat imports for auth, firestore, and database to resolve export errors.
+import 'firebase/compat/auth';
+import 'firebase/compat/firestore';
+import 'firebase/compat/database';
 
 // Your web app's Firebase configuration
 // IMPORTANT: Replace this with your own Firebase project's configuration!
@@ -26,8 +23,13 @@ const firebaseConfig = {
 // Initialize Firebase
 // FIX: Use `firebase.initializeApp` from the compat import.
 const app = firebase.initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
-const rtdb = getDatabase(app);
+// FIX: Use compat service initializers.
+const auth = firebase.auth();
+const db = firebase.firestore();
+const rtdb = firebase.database();
+
+// FIX: Export wrapper functions for network control to match expected modular signature.
+const enableNetwork = () => db.enableNetwork();
+const disableNetwork = () => db.disableNetwork();
 
 export { app, auth, db, rtdb, enableNetwork, disableNetwork };

@@ -5,7 +5,8 @@ import { DEFAULT_THEME, DEFAULT_PIECES_X, DEFAULT_PIECES_O, DEFAULT_AVATAR, getX
 import { useAuth } from './AuthContext';
 import * as onlineService from '../services/onlineService';
 import { db } from '../firebaseConfig';
-import { doc, onSnapshot } from 'firebase/firestore';
+// FIX: Firebase v9 modular imports are failing; switch to compat syntax which works with the existing `db` instance.
+import 'firebase/compat/firestore';
 
 
 const LOCAL_STORAGE_KEY = 'caroGameState_v9_guest'; // Renamed to avoid conflicts
@@ -45,6 +46,8 @@ interface GameState {
   friends: Friend[];
   notifications: Notification[];
   messageToast: Notification | null;
+  // FIX: Add showThreats to the GameState interface.
+  showThreats: boolean;
 }
 
 interface GameStateContextType {
@@ -72,6 +75,8 @@ interface GameStateContextType {
   setStatusMessage: (message: string) => void;
   showToast: (message: string, type?: 'success' | 'error', cosmeticId?: string) => void;
   setNotifications: React.Dispatch<React.SetStateAction<Notification[]>>;
+  // FIX: Add toggleShowThreats to the context type.
+  toggleShowThreats: () => void;
 }
 
 const GameStateContext = createContext<GameStateContextType | undefined>(undefined);
@@ -121,6 +126,7 @@ const createDefaultGameState = (): GameState => ({
   friends: [],
   notifications: [],
   messageToast: null,
+  showThreats: false,
 });
 
 const loadGuestState = (): GameState => {
@@ -171,7 +177,8 @@ const loadGuestState = (): GameState => {
             activeEffect,
             activeVictoryEffect: activeVictory,
             activeBoomEffect: activeBoom,
-            activeBoard
+            activeBoard,
+            showThreats: parsed.showThreats ?? false,
         };
     }
   } catch (error) { console.error("Failed to parse guest state", error); }
@@ -209,9 +216,10 @@ export const GameStateProvider: React.FC<{ children: ReactNode }> = ({ children 
         loadedUserIdRef.current = user.uid;
         const isInitialLoadDoneRef = { current: false };
 
-        const unsubProfile = onSnapshot(doc(db, 'users', user.uid), async (doc) => {
+        // FIX: Use compat syntax for onSnapshot.
+        const unsubProfile = db.collection('users').doc(user.uid).onSnapshot(async (doc) => {
             console.log("[GameStateContext] Profile snapshot received.");
-            if (doc.exists()) {
+            if (doc.exists) {
                 const profile = doc.data() as UserProfile;
                 const activeTheme = THEMES.find(t => t.id === profile.activeThemeId) || DEFAULT_THEME;
                 const activePiece = PIECE_STYLES.find(p => p.id === profile.activePieceId) || DEFAULT_PIECES_X;
@@ -247,6 +255,7 @@ export const GameStateProvider: React.FC<{ children: ReactNode }> = ({ children 
                     activeBoomEffect: activeBoom,
                     activeBoard,
                     botStats: profile.botStats || {},
+                    showThreats: profile.showThreats ?? false,
                 }));
 
                 if (!isInitialLoadDoneRef.current) {
@@ -644,6 +653,17 @@ export const GameStateProvider: React.FC<{ children: ReactNode }> = ({ children 
   const equipMusic = useCallback((musicUrl: string) => setGameState(prev => ({ ...prev, activeMusicUrl: musicUrl })), []);
   const clearRankNotification = useCallback(() => setRankNotification(null), []);
   
+  // FIX: Add toggleShowThreats implementation.
+  const toggleShowThreats = useCallback(() => {
+    setGameState(prev => {
+        const newShowThreats = !prev.showThreats;
+        if (user) {
+            onlineService.updateUserProfile(user.uid, { showThreats: newShowThreats });
+        }
+        return { ...prev, showThreats: newShowThreats };
+    });
+  }, [user]);
+
   const claimGift = useCallback(async (gift: LockerItem): Promise<{success: boolean, message: string}> => {
     if (!user) return { success: false, message: 'User not logged in' };
     
@@ -708,6 +728,7 @@ export const GameStateProvider: React.FC<{ children: ReactNode }> = ({ children 
         toggleSound, toggleMusic, setSoundVolume, setMusicVolume, equipMusic, claimGift, setStatusMessage,
         showToast,
         setNotifications,
+        toggleShowThreats,
     }}>
       {children}
     </GameStateContext.Provider>
