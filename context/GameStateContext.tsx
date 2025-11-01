@@ -46,6 +46,7 @@ interface GameState {
   friends: Friend[];
   notifications: Notification[];
   messageToast: Notification | null;
+  activeTease: { senderId: string, emoji: string, key: number } | null;
   // FIX: Add showThreats to the GameState interface.
   showThreats: boolean;
 }
@@ -126,6 +127,7 @@ const createDefaultGameState = (): GameState => ({
   friends: [],
   notifications: [],
   messageToast: null,
+  activeTease: null,
   showThreats: false,
 });
 
@@ -192,6 +194,7 @@ export const GameStateProvider: React.FC<{ children: ReactNode }> = ({ children 
   const loadedUserIdRef = useRef<string | null>(null);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const messageToastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const teaseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const processedGameIdsRef = useRef(new Set<string>());
 
   const showToast = useCallback((message: string, type: 'success' | 'error' = 'success', cosmeticId?: string) => {
@@ -284,6 +287,7 @@ export const GameStateProvider: React.FC<{ children: ReactNode }> = ({ children 
                 const newNotifications = allNotifications.filter(n => !currentNotifications.some(existing => existing.id === n.id));
 
                 let latestToast: Notification | null = prev.messageToast;
+                let latestTease: { senderId: string, emoji: string, key: number } | null = null;
                 
                 newNotifications.forEach(newNotif => {
                     const timestampValue = newNotif.timestamp;
@@ -291,20 +295,35 @@ export const GameStateProvider: React.FC<{ children: ReactNode }> = ({ children 
                     const isRecent = timestampInMillis > Date.now() - 15000;
                     const isFriend = prev.friends.some(f => f.uid === newNotif.senderId && f.status === 'friends');
                     
-                    if (isRecent && ((newNotif.type === 'message' && isFriend) || newNotif.type === 'friend_request' || newNotif.type === 'gift')) {
-                        latestToast = newNotif;
+                    if (isRecent) {
+                        if ((newNotif.type === 'message' && isFriend) || newNotif.type === 'friend_request' || newNotif.type === 'gift' || newNotif.type === 'tease') {
+                            latestToast = newNotif;
+                        } 
+                        if (newNotif.type === 'tease' && newNotif.emoji) {
+                            latestTease = { senderId: newNotif.senderId, emoji: newNotif.emoji, key: timestampInMillis };
+                        }
                     }
                 });
+
+                let nextState = { ...prev, notifications: allNotifications };
 
                 if (latestToast && latestToast !== prev.messageToast) {
                     if (messageToastTimerRef.current) clearTimeout(messageToastTimerRef.current);
                     messageToastTimerRef.current = setTimeout(() => {
                         setGameState(p => ({ ...p, messageToast: null }));
                     }, 5000);
-                    return { ...prev, notifications: allNotifications, messageToast: latestToast };
+                    nextState = { ...nextState, messageToast: latestToast };
+                }
+                
+                if (latestTease) {
+                    if (teaseTimerRef.current) clearTimeout(teaseTimerRef.current);
+                    teaseTimerRef.current = setTimeout(() => {
+                         setGameState(p => ({ ...p, activeTease: null }));
+                    }, 8000);
+                    nextState = { ...nextState, activeTease: latestTease };
                 }
 
-                return { ...prev, notifications: allNotifications };
+                return nextState;
             });
         });
         allUnsubscribers.push(unsubNotifications);

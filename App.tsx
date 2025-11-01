@@ -110,6 +110,17 @@ const MessageToast: React.FC<{ toast: Notification | null }> = ({ toast }) => {
 
     const messageText = useMemo(() => {
         if (!toast) return '';
+
+        if (toast.type === 'tease' && toast.emoji) {
+            const isUrl = toast.emoji.startsWith('assets/');
+            return (
+                <>
+                    {` ${toast.text} `}
+                    {isUrl ? <img src={toast.emoji} alt="emoji" className="inline-block w-5 h-5 align-middle" /> : <span className="align-middle">{toast.emoji}</span>}
+                </>
+            );
+        }
+
         if (toast.type === 'message' && !toast.text.startsWith('reacted with')) {
             return ` says: "${toast.text}"`;
         }

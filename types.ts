@@ -148,13 +148,14 @@ export interface Invitation {
 
 export type Notification = {
     id: string;
-    type: 'message' | 'friend_request' | 'gift';
+    type: 'message' | 'friend_request' | 'gift' | 'tease';
     text: string;
     senderId: string;
     senderName: string;
     timestamp: any;
     seen: boolean;
     cosmeticId?: string;
+    emoji?: string;
 }
 
 export type BoardMap = Record<string, Player>; // e.g. { "0_7": "X", "1_7": "O" }

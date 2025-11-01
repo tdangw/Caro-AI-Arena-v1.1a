@@ -8,6 +8,7 @@ import { SettingsModal } from './game/GameModals';
 import { useGameState } from '../context/GameStateContext';
 import { getRankFromCp, getXpForNextLevel, PRESET_STATUS_MESSAGES, ALL_COSMETICS, DEFAULT_PIECES_X, DEFAULT_PIECES_O } from '../constants';
 import FriendsManager from './friends/FriendsManager';
+// FIX: Corrected the import path for the ChatBox component. The file is located in a sibling directory, so the path should be './chat/ChatBox' instead of '../chat/ChatBox'. This resolves a module resolution error that was causing the build to fail.
 import ChatBox from './chat/ChatBox';
 import GameReviewModal from './game/GameReviewModal';
 
@@ -85,27 +86,44 @@ const SearchingModal: React.FC<{ onCancel: () => void }> = ({ onCancel }) => {
   const [timeLeft, setTimeLeft] = useState(30);
   const animationStartRef = useRef<number | null>(null);
 
+  // Memoize particle properties to prevent re-randomizing on each render
+  const orbitalParticles = useMemo(() => {
+    const particles: any[] = [];
+    const layers = [
+      { radius: 75, count: 8, color: 'bg-white', size: 'w-[3px] h-[3px]' },
+      { radius: 93, count: 12, color: 'bg-sky-400', size: 'w-0.5 h-0.5' },
+    ];
+    layers.forEach((layer, layerIndex) => {
+      for (let i = 0; i < layer.count; i++) {
+        particles.push({
+          key: `${layerIndex}-${i}`,
+          size: layer.size,
+          color: layer.color,
+          radius: layer.radius,
+          // Random duration, delay, and direction for each particle's rotation
+          animationDuration: 20 + Math.random() * 20,
+          animationDelay: Math.random() * -40,
+          animationDirection: Math.random() > 0.5 ? 'normal' : 'reverse',
+        });
+      }
+    });
+    return particles;
+  }, []);
+
   useEffect(() => {
     let animationFrameId: number;
-
     const animate = (timestamp: number) => {
-        if (animationStartRef.current === null) {
-            animationStartRef.current = timestamp;
-        }
-        const elapsed = timestamp - animationStartRef.current;
-        const newTimeLeft = Math.max(0, 30 - elapsed / 1000);
-        
-        setTimeLeft(newTimeLeft);
-
-        if (newTimeLeft > 0) {
-            animationFrameId = requestAnimationFrame(animate);
-        } else {
-            onCancel();
-        }
+      if (animationStartRef.current === null) animationStartRef.current = timestamp;
+      const elapsed = timestamp - animationStartRef.current;
+      const newTimeLeft = Math.max(0, 30 - elapsed / 1000);
+      setTimeLeft(newTimeLeft);
+      if (newTimeLeft > 0) {
+        animationFrameId = requestAnimationFrame(animate);
+      } else {
+        onCancel();
+      }
     };
-
     animationFrameId = requestAnimationFrame(animate);
-
     return () => cancelAnimationFrame(animationFrameId);
   }, [onCancel]);
 
@@ -117,8 +135,32 @@ const SearchingModal: React.FC<{ onCancel: () => void }> = ({ onCancel }) => {
   return (
     <div className="fixed inset-0 bg-slate-900/90 flex flex-col items-center justify-center z-50 backdrop-blur-sm animate-fade-in">
       <div className="relative w-48 h-48 flex items-center justify-center">
+        {/* Individually animated orbital particles */}
+        <div className="absolute w-full h-full">
+          {orbitalParticles.map(p => (
+            <div
+              key={p.key}
+              className="absolute inset-0"
+              style={{
+                animation: `orbital-rotate ${p.animationDuration}s ${p.animationDelay}s linear ${p.animationDirection} infinite`,
+              }}
+            >
+              <div
+                className="absolute top-1/2 left-1/2"
+                style={{ transform: `translate(-50%, -50%) translateY(-${p.radius}px)` }}
+              >
+                <div className={`${p.size} ${p.color} rounded-full particle-glow`} />
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Ripple Stroke Effect */}
+        <div className="absolute w-full h-full rounded-full border-2 border-sky-400/80 animate-ripple-stroke" style={{ animationDelay: '0s' }}></div>
+        <div className="absolute w-full h-full rounded-full border-2 border-sky-400/80 animate-ripple-stroke" style={{ animationDelay: '2s' }}></div>
+        
         <svg className="w-full h-full" viewBox="0 0 140 140">
-           <defs>
+          <defs>
             <linearGradient id="goldGradient" x1="0%" y1="0%" x2="100%" y2="100%">
               <stop offset="0%" stopColor="#FBBF24" />
               <stop offset="100%" stopColor="#F59E0B" />
@@ -152,10 +194,10 @@ const SearchingModal: React.FC<{ onCancel: () => void }> = ({ onCancel }) => {
           />
         </svg>
         <div className="absolute flex flex-col items-center justify-center text-white">
-            <span className="text-5xl font-bold tracking-tighter" style={{ textShadow: '0 0 10px rgba(255,255,255,0.5)' }}>{displayCountdown}</span>
+            <span className="text-5xl font-bold tracking-tighter" style={{ textShadow: '0 0 10px rgba(255,255,255,0.7)' }}>{displayCountdown}</span>
         </div>
       </div>
-       <h2 className="text-3xl font-bold text-white mt-8" style={{ textShadow: '0 0 15px rgba(56, 189, 248, 0.5)'}}>
+       <h2 className="text-3xl font-bold text-white mt-8 animate-text-glow">
         Finding Opponent
       </h2>
       <button
@@ -165,11 +207,35 @@ const SearchingModal: React.FC<{ onCancel: () => void }> = ({ onCancel }) => {
         Cancel
       </button>
       <style>{`
-        @keyframes fade-in {
-          from { opacity: 0; }
-          to { opacity: 1; }
-        }
+        @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
         .animate-fade-in { animation: fade-in 0.3s ease-out; }
+        
+        @keyframes ripple-stroke-effect {
+            0% { transform: scale(1); opacity: 0.6; }
+            100% { transform: scale(1.5); opacity: 0; }
+        }
+        .animate-ripple-stroke {
+            animation: ripple-stroke-effect 4s cubic-bezier(0.25, 0.8, 0.25, 1) infinite;
+            background: transparent;
+        }
+
+        @keyframes orbital-rotate {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+        
+        .particle-glow {
+            box-shadow: 0 0 8px currentColor, 0 0 12px currentColor, 0 0 16px currentColor;
+            opacity: 0.8;
+        }
+        
+        @keyframes text-glow-pulse {
+            0%, 100% { text-shadow: 0 0 8px rgba(56, 189, 248, 0.7); }
+            50% { text-shadow: 0 0 20px rgba(56, 189, 248, 1), 0 0 10px rgba(56, 189, 248, 0.8); }
+        }
+        .animate-text-glow {
+            animation: text-glow-pulse 2.5s infinite ease-in-out;
+        }
       `}</style>
     </div>
   );
@@ -501,11 +567,21 @@ const OnlineLobby: React.FC<OnlineLobbyProps> = ({ onStartGame, onBack }) => {
                            <div className="flex-grow p-2 max-h-80 overflow-y-auto scrollbar-hide">
                                {notifications.length > 0 ? notifications.slice(0, displayedNotifCount).map(n => {
                                     const isReaction = n.text.startsWith('reacted with');
-                                    const messageContent = isReaction ? (
-                                        <>{` `}{n.text}</>
-                                    ) : (
-                                        <> says: "{n.text}"</>
-                                    );
+                                    let messageContent;
+
+                                    if (n.type === 'tease' && n.emoji) {
+                                        const isUrl = n.emoji.startsWith('assets/');
+                                        messageContent = (
+                                            <>
+                                                {` ${n.text} `}
+                                                {isUrl ? <img src={n.emoji} alt="emoji" className="inline-block w-4 h-4 align-middle" /> : <span className="align-middle">{n.emoji}</span>}
+                                            </>
+                                        );
+                                    } else if (isReaction) {
+                                        messageContent = <>{` `}{n.text}</>;
+                                    } else {
+                                        messageContent = <> says: "{n.text}"</>;
+                                    }
 
                                    return (
                                         <div key={n.id} className={`relative group/notif text-sm p-2 rounded-md hover:bg-slate-800 cursor-pointer ${!n.seen ? 'bg-blue-900/30' : ''}`} onClick={() => handleNotificationClick(n)}>
@@ -600,7 +676,17 @@ const OnlineLobby: React.FC<OnlineLobbyProps> = ({ onStartGame, onBack }) => {
                         </div>
                     </div>
                     <div className="flex items-center gap-4">
-                        <img src={gameState.activeAvatar.url} alt="Your Avatar" className="w-16 h-16 rounded-full flex-shrink-0 border-2 border-slate-600 object-cover bg-slate-700" />
+                        <div className="relative">
+                            <img src={gameState.activeAvatar.url} alt="Your Avatar" className="w-16 h-16 rounded-full flex-shrink-0 border-2 border-slate-600 object-cover bg-slate-700" />
+                            {gameState.activeTease && (
+                                <div className="absolute -top-4 -right-4 text-4xl animate-tease-pop z-10">
+                                    {gameState.activeTease.emoji.startsWith('assets/')
+                                        ? <img src={gameState.activeTease.emoji} alt="tease" className="w-10 h-10" />
+                                        : <span>{gameState.activeTease.emoji}</span>
+                                    }
+                                </div>
+                            )}
+                        </div>
                         <div className="flex-grow min-w-0">
                             <h2 className="text-xl font-bold text-white truncate pr-8">{gameState.playerName}</h2>
                             <div className="flex items-center gap-4 mt-1">
@@ -635,8 +721,19 @@ const OnlineLobby: React.FC<OnlineLobbyProps> = ({ onStartGame, onBack }) => {
       
       <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} onLogOut={logOut} />
       {user && <MatchHistoryModal isOpen={isHistoryOpen} onClose={() => setIsHistoryOpen(false)} userId={user.uid} onViewChat={handleViewHistoryChat} />}
-      {user && <FriendsManager isOpen={isFriendsOpen} onClose={() => setIsFriendsOpen(false)} onStartChat={handleStartChat} friends={enrichedFriends} />}
+      {user && <FriendsManager isOpen={isFriendsOpen} onClose={() => setIsFriendsOpen(false)} onStartChat={handleStartChat} friends={enrichedFriends} onInvite={handleInvite} />}
       {user && chatTarget && <ChatBox isOpen={isChatOpen} onClose={() => setIsChatOpen(false)} chatId={chatTarget.chatId || onlineService.getChatId(user.uid, chatTarget.uid)} currentUserId={user.uid} senderName={gameState.playerName} recipientName={chatTarget.name} recipientId={chatTarget.uid} isReadOnly={!!chatTarget.isReadOnly} />}
+      <style>{`
+          @keyframes tease-pop-anim {
+              0% { transform: scale(0.5) rotate(15deg); opacity: 0; }
+              30% { transform: scale(1.2) rotate(-10deg); opacity: 1; }
+              50% { transform: scale(1.1) rotate(5deg); opacity: 1; }
+              100% { transform: scale(0) rotate(-15deg); opacity: 0; }
+          }
+          .animate-tease-pop {
+              animation: tease-pop-anim 8s ease-out forwards;
+          }
+      `}</style>
     </div>
   );
 };

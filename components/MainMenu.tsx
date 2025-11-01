@@ -88,7 +88,7 @@ const FeaturedItem: React.FC<{onGoToShop: () => void, itemOffset?: number}> = ({
 const PlayerProfile: React.FC = () => {
     const { user } = useAuth();
     const { gameState, setPlayerName, showToast } = useGameState();
-    const { playerName, playerLevel, playerXp, pveWins, pveLosses, pveDraws, activeAvatar, coins, cp } = gameState;
+    const { playerName, playerLevel, playerXp, pveWins, pveLosses, pveDraws, activeAvatar, coins, cp, activeTease } = gameState;
     const { playSound } = useSound();
 
     const [isEditingName, setIsEditingName] = useState(false);
@@ -167,7 +167,17 @@ const PlayerProfile: React.FC = () => {
             <div className="absolute -top-10 -right-10 w-32 h-32 bg-cyan-500/10 rounded-full blur-2xl transition-all duration-500 group-hover:scale-150"></div>
             <div className="relative z-10">
                 <div className="flex items-center gap-4">
-                    <img src={avatarUrl} alt="Player Avatar" className="w-16 h-16 rounded-full flex-shrink-0 border-2 border-slate-600 group-hover:border-cyan-400 transition-colors object-cover bg-slate-700" />
+                    <div className="relative">
+                        <img src={avatarUrl} alt="Player Avatar" className="w-16 h-16 rounded-full flex-shrink-0 border-2 border-slate-600 group-hover:border-cyan-400 transition-colors object-cover bg-slate-700" />
+                        {activeTease && (
+                            <div className="absolute -top-4 -right-4 text-4xl animate-tease-pop z-10">
+                                {activeTease.emoji.startsWith('assets/')
+                                    ? <img src={activeTease.emoji} alt="tease" className="w-10 h-10" />
+                                    : <span>{activeTease.emoji}</span>
+                                }
+                            </div>
+                        )}
+                    </div>
                     <div className="flex-grow text-left">
                         {isEditingName ? (
                             <input 
@@ -265,34 +275,39 @@ const BotCard: React.FC<{
     const totalGames = stats.wins + stats.losses + stats.draws;
     const winRate = totalGames > 0 ? ((stats.wins / totalGames) * 100).toFixed(2) : '0.00';
 
-
     return (
         <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-4 text-center transition-all duration-300 flex flex-col backdrop-blur-sm hover:border-cyan-400">
-            <img src={bot.avatar} alt={bot.name} className={`w-16 h-16 rounded-full mx-auto mb-3 border-2 ${borderColor} object-cover bg-slate-700`}/>
-            <h3 className="text-lg font-bold text-white mb-1">{bot.name}</h3>
-            <p className="text-slate-400 text-xs mb-3 flex-grow">{bot.description}</p>
-            
-            <div className="grid grid-cols-3 gap-1 text-center mb-4 text-xs">
-                <div>
-                    <p className="font-bold text-green-400">{stats.wins}</p>
-                    <p className="text-slate-500 tracking-wider text-[10px]">WINS</p>
-                </div>
-                <div>
-                    <p className="font-bold text-red-400">{stats.losses}</p>
-                    <p className="text-slate-500 tracking-wider text-[10px]">LOSSES</p>
-                </div>
-                <div>
-                    <p className="font-bold text-cyan-400">{winRate}%</p>
-                    <p className="text-slate-500 tracking-wider text-[10px]">WIN RATE</p>
-                </div>
+            {/* This div contains the top content that should always be visible. */}
+            <div>
+                <img src={bot.avatar} alt={bot.name} className={`w-16 h-16 rounded-full mx-auto mb-3 border-2 ${borderColor} object-cover bg-slate-700`}/>
+                <h3 className="text-lg font-bold text-white mb-1">{bot.name}</h3>
+                <p className="text-slate-400 text-xs mb-3">{bot.description}</p>
             </div>
+            
+            {/* This div contains the footer content and is pushed to the bottom of the card. */}
+            <div className="mt-auto">
+                <div className="grid grid-cols-3 gap-1 text-center mb-4 text-xs">
+                    <div>
+                        <p className="font-bold text-green-400">{stats.wins}</p>
+                        <p className="text-slate-500 tracking-wider text-[10px]">WINS</p>
+                    </div>
+                    <div>
+                        <p className="font-bold text-red-400">{stats.losses}</p>
+                        <p className="text-slate-500 tracking-wider text-[10px]">LOSSES</p>
+                    </div>
+                    <div>
+                        <p className="font-bold text-cyan-400">{winRate}%</p>
+                        <p className="text-slate-500 tracking-wider text-[10px]">WIN RATE</p>
+                    </div>
+                </div>
 
-            <button
-                onClick={onChallenge}
-                className="mt-auto w-full bg-cyan-500 hover:bg-cyan-400 text-black font-bold py-2 px-3 rounded-lg transition-all text-sm"
-            >
-                Challenge
-            </button>
+                <button
+                    onClick={onChallenge}
+                    className="w-full bg-cyan-500 hover:bg-cyan-400 text-black font-bold py-2 px-3 rounded-lg transition-all text-sm"
+                >
+                    Challenge
+                </button>
+            </div>
         </div>
     );
 };
@@ -453,6 +468,15 @@ const MainMenu: React.FC<MainMenuProps> = ({ onStartGame, onGoToShop, onGoToInve
             .author-name:hover, .version-button:hover {
                 color: hsl(215, 28%, 85%); /* Lighter slate */
                 text-shadow: 0 0 6px hsl(215, 28%, 85%, 0.7), 0 0 10px hsl(188, 93%, 67%, 0.5); /* Glow effect */
+            }
+            @keyframes tease-pop-anim {
+                0% { transform: scale(0.5) rotate(15deg); opacity: 0; }
+                30% { transform: scale(1.2) rotate(-10deg); opacity: 1; }
+                50% { transform: scale(1.1) rotate(5deg); opacity: 1; }
+                100% { transform: scale(0) rotate(-15deg); opacity: 0; }
+            }
+            .animate-tease-pop {
+                animation: tease-pop-anim 8s ease-out forwards;
             }
         `}</style>
     </div>
