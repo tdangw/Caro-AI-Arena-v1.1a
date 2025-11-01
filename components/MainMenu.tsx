@@ -275,44 +275,34 @@ const BotCard: React.FC<{
     const totalGames = stats.wins + stats.losses + stats.draws;
     const winRate = totalGames > 0 ? ((stats.wins / totalGames) * 100).toFixed(2) : '0.00';
 
+
     return (
         <div className="bg-slate-800/50 border border-slate-700 rounded-xl p-4 text-center transition-all duration-300 flex flex-col backdrop-blur-sm hover:border-cyan-400">
-            {/* Top part: avatar + name. */}
-            <div>
-                <img src={bot.avatar} alt={bot.name} className={`w-16 h-16 rounded-full mx-auto mb-3 border-2 ${borderColor} object-cover bg-slate-700`}/>
-                <h3 className="text-lg font-bold text-white mb-1">{bot.name}</h3>
-            </div>
+            <img src={bot.avatar} alt={bot.name} className={`w-16 h-16 rounded-full mx-auto mb-3 border-2 ${borderColor} object-cover bg-slate-700`}/>
+            <h3 className="text-lg font-bold text-white mb-1">{bot.name}</h3>
+            <p className="text-slate-400 text-xs mb-3 flex-grow">{bot.description}</p>
             
-            {/* This container will grow and hold the description and the footer. */}
-            <div className="flex flex-col flex-grow">
-                {/* Description takes up its natural height */}
-                <p className="text-slate-400 text-xs mb-3">{bot.description}</p>
-                
-                {/* Footer is pushed to the bottom of THIS container */}
-                <div className="mt-auto">
-                    <div className="grid grid-cols-3 gap-1 text-center mb-4 text-xs">
-                        <div>
-                            <p className="font-bold text-green-400">{stats.wins}</p>
-                            <p className="text-slate-500 tracking-wider text-[10px]">WINS</p>
-                        </div>
-                        <div>
-                            <p className="font-bold text-red-400">{stats.losses}</p>
-                            <p className="text-slate-500 tracking-wider text-[10px]">LOSSES</p>
-                        </div>
-                        <div>
-                            <p className="font-bold text-cyan-400">{winRate}%</p>
-                            <p className="text-slate-500 tracking-wider text-[10px]">WIN RATE</p>
-                        </div>
-                    </div>
-
-                    <button
-                        onClick={onChallenge}
-                        className="w-full bg-cyan-500 hover:bg-cyan-400 text-black font-bold py-2 px-3 rounded-lg transition-all text-sm"
-                    >
-                        Challenge
-                    </button>
+            <div className="grid grid-cols-3 gap-1 text-center mb-4 text-xs">
+                <div>
+                    <p className="font-bold text-green-400">{stats.wins}</p>
+                    <p className="text-slate-500 tracking-wider text-[10px]">WINS</p>
+                </div>
+                <div>
+                    <p className="font-bold text-red-400">{stats.losses}</p>
+                    <p className="text-slate-500 tracking-wider text-[10px]">LOSSES</p>
+                </div>
+                <div>
+                    <p className="font-bold text-cyan-400">{winRate}%</p>
+                    <p className="text-slate-500 tracking-wider text-[10px]">WIN RATE</p>
                 </div>
             </div>
+
+            <button
+                onClick={onChallenge}
+                className="mt-auto w-full bg-cyan-500 hover:bg-cyan-400 text-black font-bold py-2 px-3 rounded-lg transition-all text-sm"
+            >
+                Challenge
+            </button>
         </div>
     );
 };

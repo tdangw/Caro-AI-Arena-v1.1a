@@ -1,5 +1,11 @@
 // FIX: Corrected import statement for React hooks.
-import React, { useState, useCallback, useEffect, useRef, useMemo, Suspense } from 'react';
+import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
+import MainMenu from './components/MainMenu';
+import GameScreen from './components/game/GameScreen';
+import Shop from './components/Shop';
+import Inventory from './components/Inventory';
+import AuthScreen from './components/AuthScreen';
+import OnlineLobby from './components/OnlineLobby';
 import { GameStateProvider, useGameState } from './context/GameStateContext';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import type { BotProfile, Invitation, OnlineGame, Cosmetic, PieceStyle, Avatar, Emoji, GameTheme, PieceEffect, VictoryEffect, BoomEffect, Notification, AnimatedEmoji, BoardStyle } from './types';
@@ -7,16 +13,8 @@ import { useSound } from './hooks/useSound';
 import * as onlineService from './services/onlineService';
 import Modal from './components/Modal';
 import RankChangeModal from './components/RankChangeModal';
+import VersusScreen from './components/game/VersusScreen';
 import { ALL_COSMETICS } from './constants';
-
-// Lazy-load major components for code-splitting
-const MainMenu = React.lazy(() => import('./components/MainMenu'));
-const GameScreen = React.lazy(() => import('./components/game/GameScreen'));
-const Shop = React.lazy(() => import('./components/Shop'));
-const Inventory = React.lazy(() => import('./components/Inventory'));
-const AuthScreen = React.lazy(() => import('./components/AuthScreen'));
-const OnlineLobby = React.lazy(() => import('./components/OnlineLobby'));
-const VersusScreen = React.lazy(() => import('./components/game/VersusScreen'));
 
 
 type View = 'menu' | 'pve_game' | 'shop' | 'inventory' | 'lobby' | 'online_game' | 'versus_game';
@@ -438,15 +436,13 @@ const AppContent: React.FC = () => {
 
     return (
         <div className="bg-slate-900 relative animate-app-fade-in">
-            <Suspense fallback={<LoadingScreen />}>
-                {renderView()}
-                {overlay && (
-                    <div className="fixed inset-0 z-50 bg-black/70 p-4 sm:p-8 overflow-y-auto">
-                        {overlay === 'shop' && <Shop onBack={handleCloseOverlay} />}
-                        {overlay === 'inventory' && <Inventory onBack={handleCloseOverlay} />}
-                    </div>
-                )}
-            </Suspense>
+            {renderView()}
+            {overlay && (
+                <div className="fixed inset-0 z-50 bg-black/70 p-4 sm:p-8 overflow-y-auto">
+                    {overlay === 'shop' && <Shop onBack={handleCloseOverlay} />}
+                    {overlay === 'inventory' && <Inventory onBack={handleCloseOverlay} />}
+                </div>
+            )}
 
             <Modal isOpen={!!invitation} title="Incoming Challenge!">
                 {invitation && (
@@ -483,11 +479,11 @@ const AppController: React.FC = () => {
         return <LoadingScreen />;
     }
 
-    return (
-        <Suspense fallback={<LoadingScreen />}>
-            {user ? <AppContent /> : <AuthScreen />}
-        </Suspense>
-    );
+    if (user) {
+        return <AppContent />;
+    }
+
+    return <AuthScreen />;
 }
 
 
